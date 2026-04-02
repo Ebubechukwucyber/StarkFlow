@@ -8,7 +8,7 @@ Built for the Starkzap hackathon. StarkFlow lets users create savings vaults, de
 
 ## Live Demo
 
-> [Add your Vercel URL here after deployment]
+> [https://stark-flow-afky.vercel.app/](https://stark-flow-afky.vercel.app/)
 
 ---
 
