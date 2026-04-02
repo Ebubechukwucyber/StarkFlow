@@ -140,7 +140,7 @@ export function StarkflowProvider({ children }: ProviderProps) {
         const onboard: OnboardResult = await sdk.onboard({
           strategy: OnboardStrategy.Signer,
           account: { signer: new StarkSigner(privateKey) },
-          accountPreset: accountPresets.openZeppelin,
+          accountPreset: accountPresets.openzeppelin,
           deploy: "never",
           feeMode: "user_pays",
         });
