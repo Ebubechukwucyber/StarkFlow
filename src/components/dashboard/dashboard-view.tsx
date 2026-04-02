@@ -38,7 +38,7 @@ export function DashboardView() {
   } = useStarkflow();
 
   const [vaults, setVaults] = useState(getVaults());
-  const totals = useMemo(() => mockTotals(), [vaults]);
+  const totals = useMemo(() => mockTotals(), []);
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 

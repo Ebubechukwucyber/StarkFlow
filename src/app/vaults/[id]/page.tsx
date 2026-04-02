@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, notFound } from "next/navigation";
+import { useParams } from "next/navigation";
 import { VaultDetail } from "@/components/vault/vault-detail";
 import { getVaultById } from "@/lib/mock/vaults";
 import type { MockVault } from "@/lib/mock/vaults";
@@ -16,7 +16,6 @@ export default function VaultPage() {
     setVault(found);
   }, [id]);
 
-  // Still loading
   if (vault === undefined) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">
@@ -25,11 +24,10 @@ export default function VaultPage() {
     );
   }
 
-  // Not found
   if (vault === null) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">
-        Vault not found. It may have been deleted.
+        Vault not found.
       </div>
     );
   }
