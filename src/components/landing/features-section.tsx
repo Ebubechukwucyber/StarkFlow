@@ -21,27 +21,27 @@ const features = [
   {
     icon: Wallet,
     title: "Wallet onboarding",
-    body: "Cartridge controller flow (`OnboardStrategy.Cartridge`) with sponsored UX; demo StarkSigner fallback for quick testing on Sepolia.",
+    body: "Demo StarkSigner onboarding on Sepolia — generate a key, deploy your account, and start saving in seconds.",
   },
   {
     icon: CircleDollarSign,
-    title: "USDC & ERC-20",
-    body: "Balances and transfers with `sepoliaTokens` — USDC-first savings that feel like a neobank.",
+    title: "STRK and ERC-20",
+    body: "Balances and transfers with sepoliaTokens — deposit STRK directly into your vault with real on-chain transactions.",
   },
   {
     icon: RefreshCw,
     title: "DCA into yield",
-    body: "Schedule recurring buys via AVNU / Ekubo routes — set it once, keep stacking toward your goal.",
+    body: "Schedule recurring buys via AVNU or Ekubo routes — set it once, keep stacking toward your goal automatically.",
   },
   {
     icon: ArrowLeftRight,
     title: "Swaps when you need them",
-    body: "Rebalance inside a vault without leaving the flow; routes wired through Starkzap swap APIs.",
+    body: "Rebalance inside a vault without leaving the flow — routes wired through Starkzap swap APIs.",
   },
   {
     icon: Share2,
     title: "Shared Flow Vaults",
-    body: "Invite collaborators with a link; transparent member list and shared progress rings.",
+    body: "Invite collaborators with a link — transparent member list and shared progress rings toward a common goal.",
   },
   {
     icon: Lock,
@@ -65,8 +65,8 @@ export function FeaturesSection() {
             Everything in one SDK session
           </h2>
           <p className="mt-4 text-muted-foreground">
-            Designed for Sepolia demos today and mainnet-ready patterns tomorrow
-            — same `wallet.transfer`, DCA, lend, and paymaster flow.
+            Designed for Sepolia demos today and mainnet-ready patterns
+            tomorrow — same wallet.transfer, DCA, and paymaster flow.
           </p>
         </div>
 

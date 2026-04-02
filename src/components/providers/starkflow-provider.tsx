@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  StarkZap,
-  StarkSigner,
-  OnboardStrategy,
-  accountPresets,
-  sepoliaTokens,
-  type OnboardResult,
-} from "starkzap";
+import { StarkZap, StarkSigner, OnboardStrategy, accountPresets, sepoliaTokens, type OnboardResult } from "starkzap";
 import {
   createContext,
   useCallback,
@@ -21,8 +14,10 @@ import {
 type StarkflowWallet = {
   address: { toString: () => string };
   balanceOf: (token: unknown) => Promise<{ toUnit: () => string }>;
-  ensureReady?: (options?: unknown) => Promise<void>;
-  isDeployed?: () => Promise<boolean>;
+  ensureReady: (options?: unknown) => Promise<void>;
+  deploy: (options?: unknown) => Promise<{ hash: string; wait: () => Promise<void> }>;
+  isDeployed: () => Promise<boolean>;
+  disconnect?: () => Promise<void>;
   transfer: (
     token: unknown,
     transfers: Array<{ to: unknown; amount: unknown }>,
@@ -41,7 +36,7 @@ type StarkflowContextType = {
   deployed: boolean | null;
   loading: boolean;
   error: string | null;
-  /** Demo onboarding: generates/stores a Sepolia-only private key. */
+  toast: string | null;
   onboardDemo: () => Promise<boolean>;
   onboardWithSigner: (privateKey: string) => Promise<boolean>;
   deployAccount: () => Promise<boolean>;
@@ -57,7 +52,6 @@ const LS_MODE = "starkflow_onboard_mode";
 const LS_DEMO_PK = "starkflow_demo_private_key";
 type Mode = "signer" | null;
 
-// Starknet elliptic curve order (same as error message).
 const STARK_CURVE_N =
   3618502788666131213697322783095070105526743751716087489154079457884512865583n;
 
@@ -67,17 +61,12 @@ function bytesToBigInt(bytes: Uint8Array): bigint {
   return v;
 }
 
-function toHex(n: bigint): string {
-  return n.toString(16);
-}
-
 function generateValidStarknetPrivateKeyHex(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   const raw = bytesToBigInt(bytes);
-  // Ensure 1 <= k < n
   const k = (raw % (STARK_CURVE_N - 1n)) + 1n;
-  return `0x${toHex(k)}`;
+  return `0x${k.toString(16)}`;
 }
 
 function readMode(): Mode {
@@ -88,9 +77,7 @@ function readMode(): Mode {
 
 function readDemoPrivateKey(): string | null {
   if (typeof window === "undefined") return null;
-  const v = localStorage.getItem(LS_DEMO_PK);
-  if (!v) return null;
-  return v;
+  return localStorage.getItem(LS_DEMO_PK);
 }
 
 export function StarkflowProvider({ children }: ProviderProps) {
@@ -102,6 +89,12 @@ export function StarkflowProvider({ children }: ProviderProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 4000);
+  }, []);
 
   const getSdk = useCallback(() => {
     if (!sdkRef.current) {
@@ -109,12 +102,9 @@ export function StarkflowProvider({ children }: ProviderProps) {
         typeof window === "undefined"
           ? "http://localhost:3000/api/paymaster"
           : new URL("/api/paymaster", window.location.origin).toString();
-
       sdkRef.current = new StarkZap({
         network: "sepolia",
-        paymaster: {
-          nodeUrl: paymasterUrl,
-        },
+        paymaster: { nodeUrl: paymasterUrl },
       });
     }
     return sdkRef.current;
@@ -124,20 +114,20 @@ export function StarkflowProvider({ children }: ProviderProps) {
     setWallet(w);
     const addr = w.address.toString();
     setWalletAddress(addr);
-    if (typeof w.isDeployed === "function") {
-      try {
-        setDeployed(await w.isDeployed());
-      } catch {
-        setDeployed(null);
-      }
-    } else {
+    try {
+      setDeployed(await w.isDeployed());
+    } catch {
       setDeployed(null);
     }
-    const [usdcBal, strkBal] = await Promise.all([
-      w.balanceOf(sepoliaTokens.USDC),
-      w.balanceOf(sepoliaTokens.STRK),
-    ]);
-    setBalances({ usdc: usdcBal.toUnit(), strk: strkBal.toUnit() });
+    try {
+      const [usdcBal, strkBal] = await Promise.all([
+        w.balanceOf(sepoliaTokens.USDC),
+        w.balanceOf(sepoliaTokens.STRK),
+      ]);
+      setBalances({ usdc: usdcBal.toUnit(), strk: strkBal.toUnit() });
+    } catch {
+      setBalances({ usdc: "0", strk: "0" });
+    }
     setReady(true);
   }, []);
 
@@ -147,13 +137,10 @@ export function StarkflowProvider({ children }: ProviderProps) {
       setLoading(true);
       try {
         const sdk = getSdk();
-        // Sponsored onboarding may require AVNU paymaster config. Deposit button
-        // will still enforce sponsorship availability via /api/paymaster/health.
         const onboard: OnboardResult = await sdk.onboard({
           strategy: OnboardStrategy.Signer,
           account: { signer: new StarkSigner(privateKey) },
-          accountPreset: accountPresets.argentXV050,
-          // Demo-first UX: don't block onboarding on deployment (requires STRK unless paymastered).
+          accountPreset: accountPresets.openZeppelin,
           deploy: "never",
           feeMode: "user_pays",
         });
@@ -176,8 +163,6 @@ export function StarkflowProvider({ children }: ProviderProps) {
 
   const onboardDemo = useCallback(async () => {
     if (typeof window === "undefined") return false;
-
-    // Sepolia-only demo key. Never use this pattern on mainnet/production.
     let pk = localStorage.getItem(LS_DEMO_PK);
     if (!pk) {
       pk = generateValidStarknetPrivateKeyHex();
@@ -188,73 +173,90 @@ export function StarkflowProvider({ children }: ProviderProps) {
 
   const refreshBalances = useCallback(async () => {
     if (!wallet) return;
-    if (typeof wallet.isDeployed === "function") {
-      try {
-        setDeployed(await wallet.isDeployed());
-      } catch {
-        /* ignore */
-      }
-    }
-    const [usdcBal, strkBal] = await Promise.all([
-      wallet.balanceOf(sepoliaTokens.USDC),
-      wallet.balanceOf(sepoliaTokens.STRK),
-    ]);
-    setBalances({ usdc: usdcBal.toUnit(), strk: strkBal.toUnit() });
+    try {
+      setDeployed(await wallet.isDeployed());
+    } catch { /* ignore */ }
+    try {
+      const [usdcBal, strkBal] = await Promise.all([
+        wallet.balanceOf(sepoliaTokens.USDC),
+        wallet.balanceOf(sepoliaTokens.STRK),
+      ]);
+      setBalances({ usdc: usdcBal.toUnit(), strk: strkBal.toUnit() });
+    } catch { /* ignore */ }
   }, [wallet]);
 
   const deployAccount = useCallback(async () => {
     setError(null);
     setLoading(true);
     try {
-      if (!wallet) throw new Error("No wallet session.");
-      const ensureReady = (wallet as unknown as { ensureReady?: (o?: unknown) => Promise<void> })
-        ?.ensureReady;
-      if (typeof ensureReady !== "function") {
-        throw new Error("This wallet does not support ensureReady().");
+      if (!wallet) throw new Error("No wallet session. Please onboard first.");
+
+      const alreadyDeployed = await wallet.isDeployed();
+      if (alreadyDeployed) {
+        setDeployed(true);
+        showToast("✅ Account is already deployed!");
+        return true;
       }
 
-      // If AVNU paymaster is configured, deploy can be sponsored. Otherwise user pays (needs STRK).
-      const healthRes = await fetch("/api/paymaster/health");
-      const health = (await healthRes.json()) as { ok: boolean };
-      const feeMode = health.ok ? "sponsored" : "user_pays";
-
-      await ensureReady({ deploy: "if_needed", feeMode });
-      if (typeof wallet.isDeployed === "function") {
-        setDeployed(await wallet.isDeployed());
+      // Try sponsored first (no STRK needed), fall back to user_pays
+      let feeMode: "sponsored" | "user_pays" = "sponsored";
+      try {
+        const healthRes = await fetch("/api/paymaster/health");
+        const health = (await healthRes.json()) as { ok: boolean };
+        if (!health.ok) feeMode = "user_pays";
+      } catch {
+        feeMode = "sponsored";
       }
+
+      // Call ensureReady directly on wallet object (preserves `this` context)
+      await wallet.ensureReady({ deploy: "if_needed", feeMode });
+
+      const nowDeployed = await wallet.isDeployed();
+      setDeployed(nowDeployed);
       await refreshBalances();
+
+      if (nowDeployed) {
+        showToast("🎉 Account deployed! You can now deposit gaslessly.");
+      } else {
+        throw new Error(
+          feeMode === "user_pays"
+            ? "Deploy failed. Make sure your wallet has Sepolia STRK, then try again."
+            : "Deploy failed. Please try again or get tokens from the faucet.",
+        );
+      }
       return true;
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Deploy failed.";
+      const raw = e instanceof Error ? e.message : "Deploy failed.";
+      const message = raw.includes("max fee")
+        ? "Not enough STRK to pay deploy fee. Get STRK from the faucet first."
+        : raw.includes("rejected")
+          ? "Transaction rejected. Check your STRK balance and try again."
+          : raw.includes("timeout") || raw.includes("network")
+            ? "Network timeout. Sepolia can be slow — please try again."
+            : raw;
       setError(message);
       return false;
     } finally {
       setLoading(false);
     }
-  }, [refreshBalances, wallet]);
+  }, [wallet, refreshBalances, showToast]);
 
   const logoutAndClear = useCallback(async () => {
+    try {
+      await wallet?.disconnect?.();
+    } catch { /* ignore */ }
     setWallet(null);
     setWalletAddress(null);
     setBalances(null);
     setDeployed(null);
     setError(null);
+    setToast(null);
     setReady(false);
-
     if (typeof window !== "undefined") {
       localStorage.removeItem(LS_MODE);
-      // Keep demo PK if you want to re-onboard quickly; remove if you prefer.
-      // localStorage.removeItem(LS_DEMO_PK);
-    }
-
-    const maybeDisconnect = (wallet as unknown as { disconnect?: () => Promise<void> })
-      ?.disconnect;
-    if (typeof maybeDisconnect === "function") {
-      await maybeDisconnect().catch(() => undefined);
     }
   }, [wallet]);
 
-  // Auto re-onboard for signer mode if demo key exists.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -262,20 +264,13 @@ export function StarkflowProvider({ children }: ProviderProps) {
         const mode = readMode();
         if (mode === "signer") {
           const pk = readDemoPrivateKey();
-          if (pk) {
-            const ok = await onboardWithSigner(pk);
-            if (!cancelled && !ok) {
-              // Stay unauthenticated.
-            }
-          }
+          if (pk) await onboardWithSigner(pk);
         }
       } finally {
         if (!cancelled) setReady(true);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [onboardWithSigner]);
 
   const value = useMemo<StarkflowContextType>(
@@ -288,37 +283,26 @@ export function StarkflowProvider({ children }: ProviderProps) {
       deployed,
       loading,
       error,
+      toast,
       onboardDemo,
       onboardWithSigner,
       deployAccount,
       logoutAndClear,
       refreshBalances,
     }),
-    [
-      wallet,
-      walletAddress,
-      balances,
-      ready,
-      deployed,
-      loading,
-      error,
-      onboardDemo,
-      onboardWithSigner,
-      deployAccount,
-      logoutAndClear,
-      refreshBalances,
-      getSdk,
-    ],
+    [wallet, walletAddress, balances, ready, deployed, loading, error, toast,
+     onboardDemo, onboardWithSigner, deployAccount, logoutAndClear, refreshBalances, getSdk],
   );
 
-  return <StarkflowContext.Provider value={value}>{children}</StarkflowContext.Provider>;
+  return (
+    <StarkflowContext.Provider value={value}>
+      {children}
+    </StarkflowContext.Provider>
+  );
 }
 
 export function useStarkflow() {
   const context = useContext(StarkflowContext);
-  if (!context) {
-    throw new Error("useStarkflow must be used within StarkflowProvider");
-  }
+  if (!context) throw new Error("useStarkflow must be used within StarkflowProvider");
   return context;
 }
-

@@ -28,10 +28,7 @@ export function HeroSection() {
 
         <motion.h1
           initial={fade.initial}
-          animate={{
-            ...fade.animate,
-            transition: { duration: 0.55, delay: 0.05 },
-          }}
+          animate={{ ...fade.animate, transition: { duration: 0.55, delay: 0.05 } }}
           className="font-display text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl md:leading-[1.08]"
         >
           Save globally.
@@ -45,23 +42,17 @@ export function HeroSection() {
 
         <motion.p
           initial={fade.initial}
-          animate={{
-            ...fade.animate,
-            transition: { duration: 0.55, delay: 0.12 },
-          }}
+          animate={{ ...fade.animate, transition: { duration: 0.55, delay: 0.12 } }}
           className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg"
         >
-          Flow Vaults for personal and shared goals. Gasless USDC on Sepolia,
-          DCA into yield via Ekubo, lend idle cash, optional private transfers —
-          all in one premium wallet experience.
+          Flow Vaults for personal and shared goals. Deposit STRK on Sepolia,
+          DCA into yield via Ekubo, lend idle cash — all in one premium wallet
+          experience powered by Starkzap.
         </motion.p>
 
         <motion.div
           initial={fade.initial}
-          animate={{
-            ...fade.animate,
-            transition: { duration: 0.55, delay: 0.18 },
-          }}
+          animate={{ ...fade.animate, transition: { duration: 0.55, delay: 0.18 } }}
           className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center"
         >
           <LaunchAppButton className="group" />
@@ -80,7 +71,7 @@ export function HeroSection() {
             Account abstraction · sponsored fees
           </span>
           <span className="hidden h-4 w-px bg-border sm:block" />
-          <span>Cartridge social onboarding · Sepolia USDC</span>
+          <span>StarkSigner demo onboarding · Sepolia testnet</span>
         </motion.div>
       </div>
     </section>
